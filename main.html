@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tic-Tac-Guess</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            touch-action: manipulation; /* Prevents double-tap zoom on mobile */
+        }
+        .cell.selected {
+            background-color: #60a5fa; /* blue-400 */
+        }
+        .keyboard-btn.disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            background-color: #6b7280; /* gray-500 */
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white flex items-center justify-center min-h-screen p-4">
+
+    <div id="game-container" class="w-full max-w-md mx-auto text-center">
+        <h1 class="text-4xl md:text-5xl font-bold mb-2 text-cyan-400">Tic-Tac-Guess</h1>
+        <p class="text-gray-400 mb-4">Win Tic-Tac-Toe by guessing letters in the secret word.</p>
+
+        <!-- Score and Round Display -->
+        <div class="flex justify-between items-center w-full mb-4 text-lg">
+            <div id="player-x-score" class="bg-gray-800 px-4 py-2 rounded-lg transition-colors duration-300">Player X: 0</div>
+            <div id="round-info" class="font-bold">Round 1 / 3</div>
+            <div id="player-o-score" class="bg-gray-800 px-4 py-2 rounded-lg transition-colors duration-300">Player O: 0</div>
+        </div>
+
+        <!-- Game Status Display -->
+        <div id="status-container" class="h-12 flex items-center justify-center mb-4">
+            <p id="status-message" class="text-xl font-semibold bg-gray-800 px-4 py-2 rounded-lg shadow-md transition-all duration-300">Player X's Turn: Select a square</p>
+        </div>
+
+        <!-- Hidden Word Display -->
+        <div id="word-container" class="text-3xl md:text-4xl tracking-widest my-4 h-10 flex items-center justify-center font-mono">
+            <!-- Word will be generated here -->
+        </div>
+        
+        <!-- Strikes / Incorrect Guesses -->
+        <div class="my-4">
+             <p class="text-sm text-gray-400">Strikes</p>
+             <div id="strikes-container" class="flex justify-center items-center space-x-2 h-6">
+                <!-- Strikes will be displayed here -->
+            </div>
+        </div>
+
+        <!-- Tic-Tac-Toe Board -->
+        <div id="board" class="grid grid-cols-3 gap-3 my-6 aspect-square">
+            <!-- Cells will be generated here -->
+        </div>
+        
+        <!-- On-screen Keyboard -->
+        <div id="keyboard" class="mt-6 grid grid-cols-7 sm:grid-cols-9 gap-1.5 text-sm md:text-base">
+            <!-- Keyboard buttons will be generated here -->
+        </div>
+
+        <!-- Game Control Buttons -->
+        <div class="mt-8 space-x-4">
+            <button id="next-round-btn" class="hidden bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-6 rounded-lg shadow-lg transition-transform transform hover:scale-105">
+                Next Round
+            </button>
+            <button id="restart-game-btn" class="bg-cyan-500 hover:bg-cyan-600 text-white font-bold py-3 px-6 rounded-lg shadow-lg transition-transform transform hover:scale-105">
+                Restart Game
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // --- DOM Elements ---
+        const boardElement = document.getElementById('board');
+        const wordContainer = document.getElementById('word-container');
+        const statusMessage = document.getElementById('status-message');
+        const keyboardElement = document.getElementById('keyboard');
+        const restartGameBtn = document.getElementById('restart-game-btn');
+        const nextRoundBtn = document.getElementById('next-round-btn');
+        const strikesContainer = document.getElementById('strikes-container');
+        const playerXScoreElement = document.getElementById('player-x-score');
+        const playerOScoreElement = document.getElementById('player-o-score');
+        const roundInfoElement = document.getElementById('round-info');
+
+
+        // --- Game Configuration ---
+        const wordList = ["REACT", "ANGULAR", "JAVASCRIPT", "PYTHON", "TAILWIND", "COMPONENT", "FRAMEWORK", "LIBRARY", "DEVELOPER", "INTERFACE"];
+        const MAX_STRIKES = 8;
+        const MAX_ROUNDS = 3;
+
+        // --- Game State ---
+        let state = {};
+
+        // --- Game Logic Functions ---
+        
+        function restartGame() {
+            state = {
+                scores: { X: 0, O: 0 },
+                currentRound: 0,
+            };
+            startNewRound();
+        }
+        
+        function startNewRound() {
+            state.currentRound++;
+            state.currentPlayer = 'X';
+            state.board = Array(9).fill(null);
+            state.currentWord = wordList[Math.floor(Math.random() * wordList.length)];
+            state.guessedLetters = [];
+            state.incorrectGuesses = 0;
+            state.selectedSquare = null;
+            state.gameOver = false; // Represents "round over"
+            state.ticTacToeWinner = null;
+
+            nextRoundBtn.classList.add('hidden');
+            restartGameBtn.textContent = 'Restart Game';
+
+            render();
+        }
+
+
+        function render() {
+            renderBoard();
+            renderWord();
+            renderKeyboard();
+            renderStrikes();
+            renderScoresAndRound();
+            updateStatus();
+        }
+        
+        function renderScoresAndRound() {
+            playerXScoreElement.textContent = `Player X: ${state.scores.X}`;
+            playerOScoreElement.textContent = `Player O: ${state.scores.O}`;
+            if (state.currentRound <= MAX_ROUNDS) {
+                roundInfoElement.textContent = `Round ${state.currentRound} / ${MAX_ROUNDS}`;
+            }
+        }
+
+
+        function renderBoard() {
+            boardElement.innerHTML = '';
+            state.board.forEach((cell, index) => {
+                const cellElement = document.createElement('div');
+                cellElement.classList.add('cell', 'bg-gray-800', 'rounded-lg', 'flex', 'items-center', 'justify-center', 'text-5xl', 'font-bold', 'cursor-pointer', 'transition-all', 'duration-200', 'hover:bg-gray-700', 'aspect-square');
+                cellElement.dataset.index = index;
+
+                if (cell === 'X') {
+                    cellElement.textContent = 'X';
+                    cellElement.classList.add('text-teal-400');
+                } else if (cell === 'O') {
+                    cellElement.textContent = 'O';
+                    cellElement.classList.add('text-amber-400');
+                }
+                
+                if (state.selectedSquare === index) {
+                    cellElement.classList.add('selected');
+                }
+
+                boardElement.appendChild(cellElement);
+            });
+        }
+
+        function renderWord() {
+            const displayWord = state.currentWord
+                .split('')
+                .map(letter => (state.guessedLetters.includes(letter) ? letter : '_'))
+                .join(' ');
+            wordContainer.textContent = displayWord;
+        }
+
+        function renderKeyboard() {
+            keyboardElement.innerHTML = '';
+            const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+            alphabet.split('').forEach(letter => {
+                const btn = document.createElement('button');
+                btn.textContent = letter;
+                btn.classList.add('keyboard-btn', 'bg-gray-700', 'rounded-md', 'p-2', 'font-semibold', 'transition-all', 'hover:bg-gray-600', 'transform', 'hover:scale-110');
+                btn.dataset.letter = letter;
+
+                if (state.guessedLetters.includes(letter) || state.gameOver) {
+                     btn.classList.add('disabled');
+                }
+                
+                keyboardElement.appendChild(btn);
+            });
+        }
+        
+        function renderStrikes() {
+            strikesContainer.innerHTML = '';
+            for (let i = 0; i < MAX_STRIKES; i++) {
+                const strikeElement = document.createElement('div');
+                strikeElement.classList.add('w-6', 'h-2', 'rounded-full');
+                if (i < state.incorrectGuesses) {
+                    strikeElement.classList.add('bg-red-500');
+                } else {
+                    strikeElement.classList.add('bg-gray-600');
+                }
+                strikesContainer.appendChild(strikeElement);
+            }
+        }
+
+        function updateStatus() {
+            if (state.gameOver) {
+                // Status is set by endRound() or winning conditions
+                return;
+            }
+
+            if (state.ticTacToeWinner) {
+                 statusMessage.textContent = `Player ${state.currentPlayer} is finishing the word...`;
+            } else if (state.selectedSquare === null) {
+                statusMessage.textContent = `Player ${state.currentPlayer}'s Turn: Select a square`;
+            } else {
+                statusMessage.textContent = `Player ${state.currentPlayer}'s Turn: Guess a letter`;
+            }
+        }
+
+        function handleSquareClick(index) {
+            if (state.gameOver || state.board[index] !== null || state.ticTacToeWinner) {
+                return;
+            }
+            state.selectedSquare = index;
+            renderBoard();
+            updateStatus();
+        }
+
+        function handleLetterGuess(letter) {
+            if (state.gameOver || state.guessedLetters.includes(letter)) return;
+            if (state.selectedSquare === null && !state.ticTacToeWinner) return;
+
+            state.guessedLetters.push(letter);
+            const isCorrect = state.currentWord.includes(letter);
+
+            let turnMessage = "";
+
+            if (isCorrect) {
+                turnMessage = "Correct!";
+
+                if (!state.ticTacToeWinner) {
+                    state.board[state.selectedSquare] = state.currentPlayer;
+                }
+
+                const wordCompleted = state.currentWord.split('').every(l => state.guessedLetters.includes(l));
+                const tttWinner = checkWinner();
+                
+                if (wordCompleted) {
+                    const points = state.ticTacToeWinner ? 2 : 5;
+                    state.scores[state.currentPlayer] += points;
+                    turnMessage = `Word complete! +${points} for Player ${state.currentPlayer}`;
+                    endRound();
+                } else if (tttWinner && !state.ticTacToeWinner) {
+                    state.ticTacToeWinner = tttWinner;
+                    state.scores[tttWinner] += 3;
+                    state.currentPlayer = tttWinner;
+                    turnMessage = `Player ${tttWinner} won the board (+3 pts)! Keep guessing.`;
+                }
+
+            } else { // Incorrect guess
+                turnMessage = "Wrong!";
+                state.incorrectGuesses++;
+
+                if (state.incorrectGuesses >= MAX_STRIKES) {
+                    turnMessage = `Out of strikes! The word was: ${state.currentWord}`;
+                    endRound();
+                } else if (!state.ticTacToeWinner) {
+                    state.currentPlayer = state.currentPlayer === 'X' ? 'O' : 'X';
+                }
+            }
+
+            if (!state.ticTacToeWinner) {
+                state.selectedSquare = null;
+                 // Check for a draw on the board
+                if (!state.board.includes(null) && !checkWinner()) {
+                    state.ticTacToeWinner = 'DRAW'; // Mark board as complete
+                    turnMessage = 'Board is a draw! Finish the word.';
+                }
+            }
+            
+            statusMessage.textContent = turnMessage;
+            
+            // A short delay to show the "Correct/Wrong" message before re-rendering
+            setTimeout(render, 800);
+        }
+
+        function endRound() {
+            state.gameOver = true;
+
+            if (state.currentRound >= MAX_ROUNDS) {
+                // Game Over
+                let finalMessage;
+                if (state.scores.X > state.scores.O) {
+                    finalMessage = `Player X wins the game ${state.scores.X} to ${state.scores.O}!`;
+                } else if (state.scores.O > state.scores.X) {
+                    finalMessage = `Player O wins the game ${state.scores.O} to ${state.scores.X}!`;
+                } else {
+                    finalMessage = `The game is a tie! ${state.scores.X} to ${state.scores.O}.`;
+                }
+                statusMessage.textContent = finalMessage;
+                restartGameBtn.textContent = 'Play Again?';
+                nextRoundBtn.classList.add('hidden');
+            } else {
+                // Round Over, show next round button
+                nextRoundBtn.classList.remove('hidden');
+            }
+        }
+
+
+        function checkWinner() {
+            const winningCombos = [
+                [0, 1, 2], [3, 4, 5], [6, 7, 8], // rows
+                [0, 3, 6], [1, 4, 7], [2, 5, 8], // columns
+                [0, 4, 8], [2, 4, 6]             // diagonals
+            ];
+
+            for (const combo of winningCombos) {
+                const [a, b, c] = combo;
+                if (state.board[a] && state.board[a] === state.board[b] && state.board[a] === state.board[c]) {
+                    return state.board[a];
+                }
+            }
+            return null;
+        }
+
+        // --- Event Listeners ---
+        boardElement.addEventListener('click', (e) => {
+            const index = e.target.closest('.cell')?.dataset.index;
+            if (index !== undefined) {
+                handleSquareClick(parseInt(index));
+            }
+        });
+
+        keyboardElement.addEventListener('click', (e) => {
+            const letter = e.target.closest('.keyboard-btn')?.dataset.letter;
+            if (letter) {
+                handleLetterGuess(letter);
+            }
+        });
+
+        restartGameBtn.addEventListener('click', restartGame);
+        nextRoundBtn.addEventListener('click', startNewRound);
+
+        // --- Initial Load ---
+        document.addEventListener('DOMContentLoaded', restartGame);
+    </script>
+</body>
+</html>
+
